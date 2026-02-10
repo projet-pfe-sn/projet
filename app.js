@@ -100,56 +100,52 @@ app.get("/", (req, res) => {
 // ——————————————————————————
 
 app.get("/register", (req, res) => {
-  res.render("auth/register");
+  res.render("auth/register", { error: null });
 });
 
 app.post("/register", (req, res) => {
-  const { nom_complet, email, mot_de_passe, telephone, nationalite, role } = req.body;
+  const { nom_complet, email, mot_de_passe, role } = req.body;
 
-  if (!email || !mot_de_passe) {
-    return res.render("auth/register", { error: "Email et mot de passe requis" });
-  }
-
+  // Hachage mot de passe
   const hashedPassword = bcrypt.hashSync(mot_de_passe, 10);
 
-  db.query(
-    "INSERT INTO utilisateurs (nom_complet, email, mot_de_passe, role, est_actif) VALUES (?, ?, ?, ?, 1)",
-    [nom_complet, email, hashedPassword, role],
-    (err, result) => {
-      if (err) {
-        console.error("ERREUR utilisateurs:", err);
-        return res.status(500).send("Erreur serveur (inscription)");
-      }
+  // Vérifier si email existe déjà
+  db.query("SELECT id FROM utilisateurs WHERE email = ?", [email], (err, rows) => {
+    if (err) return res.status(500).send("Erreur serveur");
+    if (rows.length > 0) return res.render("auth/register", { error: "Email déjà utilisé" });
 
-      const id_utilisateur = result.insertId;
+    // Créer utilisateur
+    db.query(
+      "INSERT INTO utilisateurs (nom_complet, email, mot_de_passe, role, est_actif) VALUES (?, ?, ?, ?, 1)",
+      [nom_complet, email, hashedPassword, role],
+      (err, result) => {
+        if (err) return res.status(500).send("Erreur inscription");
 
-      if (role === "TOURISTE") {
-        db.query(
-          "INSERT INTO touristes (id_utilisateur, nationalite, telephone) VALUES (?, ?, ?)",
-          [id_utilisateur, nationalite || null, telephone || null],
-          (err2) => {
-            if (err2) {
-              console.error("ERREUR touristes:", err2);
-              return res.status(500).send("Erreur Base touristes");
-            }
-            res.redirect("/login");
-          }
-        );
-      } else if (role === "GUIDE") {
-        db.query(
-          "INSERT INTO guides (id_utilisateur, cv, statut) VALUES (?, NULL, 'ACTIF')",
-          [id_utilisateur],
-          (err2) => {
-            if (err2) {
-              console.error("ERREUR guides:", err2);
-              return res.status(500).send("Erreur Base guides");
-            }
-            res.redirect("/login");
-          }
-        );
+        const id_utilisateur = result.insertId;
+
+        // Selon le rôle
+        if (role === "TOURISTE") {
+          db.query(
+            "INSERT INTO touristes (id_utilisateur, nationalite, telephone) VALUES (?, NULL, NULL)",
+            [id_utilisateur]
+          );
+        } else if (role === "GUIDE") {
+          db.query(
+            "INSERT INTO guides (id_utilisateur, cv, statut, cv_approved) VALUES (?, NULL, 'ACTIF', 0)",
+            [id_utilisateur]
+          );
+          // Notification auto à l'admin
+          db.query(
+            "INSERT INTO notifications (id_utilisateur, type, contenu) VALUES (3, 'CV', 'Nouveau guide inscrit: " + nom_complet + " (" + email + ")')",
+            [3] // id admin = 3
+          );
+        } 
+        // ADMIN: rien de plus, juste créé
+
+        res.redirect("/login");
       }
-    }
-  );
+    );
+  });
 });
 
 // ——————————————————————————
@@ -486,6 +482,174 @@ app.post("/admin/cv/:id/approve", (req, res) => {
       );
 
       res.redirect("/admin/cv-attente");
+    }
+  );
+});
+
+// ——————————————————————————
+// ROUTES ADMIN COMPLETES
+// ——————————————————————————
+
+// Login Admin
+app.get("/admin/login", (req, res) => {
+  res.render("admin/login");
+});
+
+app.post("/admin/login", (req, res) => {
+  const { email, mot_de_passe } = req.body;
+
+  db.query(
+    "SELECT * FROM utilisateurs WHERE email = ? AND role = 'ADMIN'",
+    [email],
+    (err, rows) => {
+      if (err || rows.length !== 1) {
+        return res.render("admin/login", { error: "Email ou mot de passe incorrect" });
+      }
+
+      const admin = rows[0];
+      if (!bcrypt.compareSync(mot_de_passe, admin.mot_de_passe)) {
+        return res.render("admin/login", { error: "Email ou mot de passe incorrect" });
+      }
+
+      req.session.user = admin;
+      res.redirect("/admin/dashboard");
+    }
+  );
+});
+
+// Logout Admin
+app.get("/admin/logout", (req, res) => {
+  req.session.destroy();
+  res.redirect("/");
+});
+
+// Dashboard Admin - Liste guides + onglets
+app.get("/admin/dashboard", (req, res) => {
+  if (!req.session.user || req.session.user.role !== "ADMIN") {
+    return res.redirect("/admin/login");
+  }
+
+  const adminId = req.session.user.id;
+
+  // Stats complètes
+  db.query(`
+    SELECT 
+      (SELECT COUNT(*) FROM guides WHERE cv_approved = 1 OR statut = 'ACTIF') as guides_actifs,
+      (SELECT COUNT(*) FROM guides g JOIN utilisateurs u ON g.id_utilisateur = u.id WHERE g.cv_approved = 0 AND g.cv IS NOT NULL) as guides_en_attente,
+      (SELECT COUNT(*) FROM notifications WHERE id_utilisateur = ? AND est_vu = 0) as notifications_non_lues,
+      (SELECT COUNT(*) FROM plans_touristiques) as total_plans
+  `, [adminId], (err, stats) => {
+
+    // Guides actifs avec nombre de plans
+    db.query(`
+      SELECT u.*, g.cv_approved, g.statut, g.abonnement_actif,
+             (SELECT COUNT(*) FROM plans_touristiques WHERE id_guide = u.id) as nb_plans
+      FROM utilisateurs u JOIN guides g ON u.id = g.id_utilisateur
+      WHERE u.role = 'GUIDE' AND g.statut = 'ACTIF'
+      ORDER BY g.date_validation DESC LIMIT 10
+    `, (err2, guides_actifs) => {
+
+      // Guides en attente
+      db.query(`
+        SELECT u.*, g.cv 
+        FROM utilisateurs u JOIN guides g ON u.id = g.id_utilisateur
+        WHERE u.role = 'GUIDE' AND g.cv_approved = 0 AND g.cv IS NOT NULL
+        ORDER BY u.date_creation DESC
+      `, (err3, guides_attente) => {
+
+        // Notifications
+        db.query(
+          "SELECT * FROM notifications WHERE id_utilisateur = ? ORDER BY date_creation DESC LIMIT 10",
+          [adminId], (err4, notifications) => {
+            res.render("admin/dashboard", {
+              user: req.session.user,
+              stats: stats[0],
+              guides_actifs,
+              guides_attente,
+              notifications
+            });
+          }
+        );
+      });
+    });
+  });
+});
+
+// Valider CV Guide
+app.post("/admin/cv/:id/approve", (req, res) => {
+  if (!req.session.user || req.session.user.role !== "ADMIN") {
+    return res.status(403).send("Accès refusé");
+  }
+
+  const id_guide = req.params.id;
+
+  db.query(
+    "UPDATE guides SET cv_approved = 1, date_validation = NOW(), statut = 'ACTIF' WHERE id_utilisateur = ?",
+    [id_guide],
+    (err) => {
+      if (err) return res.status(500).send("Erreur validation");
+
+      // Notification au guide
+      db.query(
+        "INSERT INTO notifications (id_utilisateur, type, contenu, est_vu) VALUES (?, 'CV', 'Votre CV a été approuvé !', 0)",
+        [id_guide]
+      );
+
+      res.redirect("/admin/dashboard");
+    }
+  );
+});
+
+// Bloquer/Débloquer Guide
+app.post("/admin/guide/:id/:action", (req, res) => {
+  if (!req.session.user || req.session.user.role !== "ADMIN") {
+    return res.status(403).send("Accès refusé");
+  }
+
+  const id_guide = req.params.id;
+  const action = req.params.action; // 'bloquer' ou 'activer'
+
+  const newStatut = action === 'bloquer' ? 'BLOQUE' : 'ACTIF';
+
+  db.query(
+    "UPDATE guides SET statut = ? WHERE id_utilisateur = ?",
+    [newStatut, id_guide],
+    (err) => {
+      if (err) return res.status(500).send("Erreur statut");
+      res.redirect("/admin/dashboard");
+    }
+  );
+});
+
+// Messagerie Admin ↔ Guides
+app.get("/admin/messages", (req, res) => {
+  if (!req.session.user || req.session.user.role !== "ADMIN") {
+    return res.redirect("/admin/login");
+  }
+
+  db.query(`
+    SELECT m.*, u.nom_complet 
+    FROM messages m 
+    JOIN utilisateurs u ON m.id_expediteur = u.id 
+    WHERE m.id_destinataire = ? OR m.id_expediteur = ?
+    ORDER BY m.date_creation DESC
+  `, [req.session.user.id, req.session.user.id], (err, messages) => {
+    res.render("admin/messages", {
+      user: req.session.user,
+      messages
+    });
+  });
+});
+
+app.post("/admin/messages", (req, res) => {
+  const { destinataire, contenu } = req.body;
+  
+  db.query(
+    "INSERT INTO messages (id_expediteur, id_destinataire, contenu) VALUES (?, ?, ?)",
+    [req.session.user.id, destinataire, contenu],
+    (err) => {
+      if (err) return res.status(500).send("Erreur envoi");
+      res.redirect("/admin/messages");
     }
   );
 });
