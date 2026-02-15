@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Messages Admin - Guide</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .message { margin: 15px 0; padding: 15px; border-radius: 10px; }
+    .message.admin { background: #e3f2fd; border-left: 4px solid #2196f3; }
+    .message.guide { background: #f3e5f5; border-left: 4px solid #9c27b0; text-align: right; }
+    .message-content { font-size: 1.1em; margin-bottom: 5px; }
+    .message-meta { color: #666; font-size: 0.9em; }
+    .form-container { margin-top: 30px; }
+    input[type="text"] { width: 70%; padding: 12px; border: 2px solid #ddd; border-radius: 25px; }
+    button { padding: 12px 25px; background: #9c27b0; color: white; border: none; border-radius: 25px; cursor: pointer; font-size: 1em; }
+    .back-btn { display: inline-block; margin: 20px 0; padding: 10px 20px; background: #2196f3; color: white; text-decoration: none; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <a href="/guide/dashboard" class="back-btn">← Dashboard</a>
+  
+  <h1>💬 Messages avec Admin</h1>
+
+  {{#if messages.length}}
+    {{#each messages}}
+    <div class="message {{this.admin_name ? 'admin' : 'guide'}}">
+      <div class="message-content">{{this.contenu}}</div>
+      <div class="message-meta">
+        {{this.admin_name}} - {{this.date_creation}}
+      </div>
+    </div>
+    {{/each}}
+  {{else}}
+    <p>Aucun message. L'admin vous contactera bientôt !</p>
+  {{/if}}
+
+  <div class="form-container">
+    <form method="POST" action="/guide/messages">
+      <input type="hidden" name="adminId" value="13">
+      <input type="text" name="contenu" placeholder="Tapez votre message..." required>
+      <button type="submit">Envoyer</button>
+    </form>
+  </div>
+</body>
+</html>

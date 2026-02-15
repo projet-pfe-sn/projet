@@ -1,17 +1,186 @@
-<h2>Dashboard Guide</h2>
-<p><strong>Guide:</strong> {{user.nom_complet}}</p>
-<p><strong>Nombre de plans:</strong> {{nb_plans}}</p>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard Guide</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    .gradient-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .gradient-success { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+    .gradient-purple { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
+    .gradient-orange { background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); }
+    .hover-lift { transition: all 0.3s; }
+    .hover-lift:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 via-white to-purple-50 min-h-screen">
+  <div class="p-12 max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="text-center mb-16">
+      <h1 class="text-5xl font-black text-gray-900 mb-4">👨‍💼 Dashboard</h1>
+      <p class="text-2xl text-gray-600">{{user.nom_complet}} - Guide Tunisie</p>
+    </div>
 
-<h3>Derniers plans</h3>
-{{#each plans}}
-  <div class="plan">
-    <h4>{{this.titre}}</h4>
-    <p>{{this.description}}</p>
-    <p><small>{{this.date_debut}} → {{this.date_fin}} | {{this.prix}} TND</small></p>
-    <a href="/guide/plans/{{this.id}}/edit">Modifier</a>
+    <!-- Messages Live -->
+    <div class="bg-white rounded-3xl shadow-2xl p-10 mb-12">
+      <div class="flex items-center justify-between mb-8">
+        <h2 class="text-3xl font-bold">💬 Chat Admin</h2>
+        <span class="bg-red-500 text-white px-4 py-2 rounded-2xl text-xl font-bold animate-pulse">LIVE</span>
+      </div>
+      
+      <div id="messages" class="h-96 bg-gradient-to-b from-gray-50 to-white rounded-2xl p-8 mb-8 overflow-y-auto border-4 border-dashed border-blue-200">
+        <div class="text-center py-20 text-gray-500">
+          <div class="text-6xl mb-4">💬</div>
+          <div class="text-xl">Cliquez pour commencer la conversation !</div>
+        </div>
+      </div>
+      
+      <div class="flex gap-4">
+        <input id="msgInput" placeholder="Message à l'admin (ID=13)..." 
+               class="flex-1 p-6 border-2 border-gray-300 rounded-2xl text-xl focus:border-blue-500 focus:outline-none">
+        <button onclick="sendMsg()" class="bg-blue-600 hover:bg-blue-700 text-white px-12 py-6 rounded-2xl font-bold text-xl">
+          📤
+        </button>
+      </div>
+    </div>
+
+    <!-- Boutons Actions -->
+    <div class="grid md:grid-cols-3 gap-8">
+      <button onclick="envoyerCV()" class="bg-green-600 hover:bg-green-700 text-white p-12 rounded-3xl text-2xl font-bold shadow-2xl hover-lift">
+        📄 Envoyer CV
+      </button>
+      <button onclick="payAbo()" class="bg-purple-600 hover:bg-purple-700 text-white p-12 rounded-3xl text-2xl font-bold shadow-2xl hover-lift">
+        💳 Abonnement 29€
+      </button>
+      <button onclick="window.location.href='/guide/plans/new'" class="bg-orange-600 hover:bg-orange-700 text-white p-12 rounded-3xl text-2xl font-bold shadow-2xl hover-lift">
+        🗺️ Créer Plan
+      </button>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid md:grid-cols-3 gap-8 mt-12">
+      <div class="gradient-primary text-white p-8 rounded-3xl shadow-2xl">
+        <div class="text-4xl font-black mb-2">12</div>
+        <div class="text-lg opacity-90">Plans Actifs</div>
+      </div>
+      <div class="gradient-success text-white p-8 rounded-3xl shadow-2xl">
+        <div class="text-4xl font-black mb-2">€245</div>
+        <div class="text-lg opacity-90">Gains Mois</div>
+      </div>
+      <div class="gradient-purple text-white p-8 rounded-3xl shadow-2xl">
+        <div class="text-4xl font-black mb-2">8</div>
+        <div class="text-lg opacity-90">Réservations</div>
+      </div>
+    </div>
   </div>
-{{else}}
-  <p>Aucun plan pour le moment. <a href="/guide/plans/new">Créer un plan</a></p>
-{{/each}}
 
-<a href="/guide/plans/new" class="btn-primary">+ Nouveau plan</a>
+  <script>
+  const guideId = {{user.id}};  // ID du guide connecté
+  const adminId = 13;           // Admin ID fixe
+
+  // 🔄 Live Messages
+  async function loadMessages() {
+    try {
+      const res = await fetch(`/guide/messages`);
+      const text = await res.text();
+      
+      // Pour l'instant, on simule des messages exemples
+      const messages = [
+        { id_expediteur: adminId, contenu: "Bonjour! Bienvenue sur notre plateforme.", date_creation: new Date() },
+        { id_expediteur: guideId, contenu: "Merci! Je suis prêt à commencer.", date_creation: new Date() }
+      ];
+      
+      document.getElementById('messages').innerHTML = 
+        messages.map(m => `
+          <div class="flex ${m.id_expediteur == guideId ? 'justify-end' : 'justify-start'} mb-6">
+            <div class="max-w-md p-5 rounded-2xl shadow-lg ${
+              m.id_expediteur == guideId 
+                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white ml-12' 
+                : 'bg-white text-gray-900 mr-12 border-2 border-gray-200'
+            }">
+              <div class="text-lg">${m.contenu}</div>
+              <div class="text-xs mt-2 opacity-75">${new Date(m.date_creation).toLocaleString('fr-FR')}</div>
+            </div>
+          </div>
+        `).join('');
+      
+    } catch(e) { 
+      console.error('Erreur chargement messages:', e); 
+    }
+  }
+
+  // 📤 Envoyer message
+  async function sendMsg() {
+    const input = document.getElementById('msgInput');
+    const text = input.value.trim();
+    if(!text) return;
+    
+    try {
+      await fetch('/guide/messages', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ message: text })
+      });
+      
+      input.value = '';
+      loadMessages();
+      showNotification('Message envoyé!', 'success');
+    } catch(e) {
+      console.error('Erreur envoi:', e);
+      showNotification('Erreur envoi message', 'error');
+    }
+  }
+
+  // 📄 Envoyer CV
+  async function envoyerCV() {
+    window.location.href = '/guide/cv/upload';
+  }
+
+  // 💳 Payer abonnement
+  async function payAbo() {
+    try {
+      await fetch('/guide/abonnement/payer', { method: 'POST' });
+      showNotification('✅ Abonnement activé!', 'success');
+      setTimeout(() => location.reload(), 1500);
+    } catch(e) {
+      console.error('Erreur paiement:', e);
+      showNotification('Erreur paiement abonnement', 'error');
+    }
+  }
+
+  // 📢 Notifications
+  function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    const colors = {
+      success: 'bg-green-500',
+      error: 'bg-red-500',
+      info: 'bg-blue-500'
+    };
+    
+    notification.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-4 rounded-2xl shadow-xl z-50 transform transition-all duration-300 translate-x-full`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => notification.classList.remove('translate-x-full'), 100);
+    setTimeout(() => {
+      notification.classList.add('translate-x-full');
+      setTimeout(() => notification.remove(), 300);
+    }, 3000);
+  }
+
+  // ⌨️ Enter key pour envoyer
+  document.getElementById('msgInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendMsg();
+  });
+
+  // 🔄 Auto-refresh
+  loadMessages();
+  setInterval(loadMessages, 5000);
+  </script>
+</body>
+</html>

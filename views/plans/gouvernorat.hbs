@@ -1,0 +1,135 @@
+{{#layout title="{{gouvernorat.nom}} - Plans"}}
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{gouvernorat.nom}} - Plans</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div class="min-h-screen bg-gray-50 py-12">
+    <div class="max-w-7xl mx-auto px-6">
+      <!-- Header Gouvernorat -->
+      <div class="text-center mb-16">
+        <div class="mb-8">
+          <a href="/" class="inline-flex items-center text-blue-600 hover:text-blue-700 font-medium mb-4 transition-colors">
+            <i class="fas fa-arrow-left mr-2"></i>
+            Retour à l'accueil
+          </a>
+        </div>
+        <h1 class="text-6xl font-black text-gray-900 mb-6">{{gouvernorat.nom}}</h1>
+        <p class="text-2xl text-gray-600">{{delegations.length}} Délégations disponibles</p>
+      </div>
+
+      <!-- Délégations / Lieux -->
+      {{#if delegations.length}}
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+        {{#each delegations}}
+        <div class="group bg-white rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl transform hover:-translate-y-4 transition-all duration-500">
+          <div class="h-64 bg-gradient-to-br from-blue-500 to-purple-600 relative overflow-hidden">
+            {{#if image}}
+            <img src="{{image}}" alt="{{nom}}" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
+            {{else}}
+            <div class="w-full h-full flex items-center justify-center text-white text-6xl opacity-50">
+              📍
+            </div>
+            {{/if}}
+            <div class="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl">
+              <span class="font-bold text-gray-900 text-lg">{{nb_lieux || 0}}</span> lieux
+            </div>
+          </div>
+          <div class="p-8">
+            <h3 class="text-2xl font-bold text-gray-900 mb-4">{{nom}}</h3>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-gray-500">Hôtels • Musées • Plans</span>
+              <button onclick="window.location.href='/delegation/{{id}}'" class="bg-gradient-to-r from-blue-600 to-emerald-600 text-white px-8 py-3 rounded-2xl font-bold hover:shadow-xl transition-all">
+                Explorer
+              </button>
+            </div>
+          </div>
+        </div>
+        {{/each}}
+      </div>
+      {{else}}
+      <div class="text-center py-20">
+        <div class="text-6xl mb-4">📍</div>
+        <h3 class="text-2xl font-bold text-gray-900 mb-2">Aucune délégation disponible</h3>
+        <p class="text-gray-600">Les délégations pour ce gouvernorat seront bientôt ajoutées</p>
+      </div>
+      {{/if}}
+    </div>
+  </div>
+
+  <!-- Navigation -->
+  <div class="fixed bottom-6 left-6">
+    <a href="/" class="bg-white hover:bg-gray-100 text-gray-900 px-6 py-3 rounded-full shadow-lg hover:shadow-xl transition-all border border-gray-200">
+      ← Accueil
+    </a>
+  </div>
+
+  {{#if user}}
+  <div class="fixed bottom-6 right-6">
+    <a href="/{{user.role.toLowerCase}}/dashboard" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full shadow-lg hover:shadow-xl transition-all">
+      🏠 Dashboard
+    </a>
+  </div>
+  {{/if}}
+</body>
+</html>
+{{/layout}}
+      {{#each lieux}}
+      <div class="lieu-card">
+        <h3>{{this.nom}}</h3>
+        <p class="type {{this.type}}">{{#if (eq this.type 'plage')}}🏖️{{else if (eq this.type 'culturel')}}🏛️{{else if (eq this.type 'historique')}}⛲{{/if}}} {{this.type}}</p>
+        <p>{{this.description}}</p>
+        {{#if this.telephone}}
+          <div class="contact">
+            📞 <a href="tel:{{this.telephone}}">{{this.telephone}}</a>
+          </div>
+        {{/if}}
+        {{#if this.horaires}}<p><strong>⏰</strong> {{this.horaires}}</p>{{/if}}
+        {{#if this.prix}}<p><strong>💰</strong> {{this.prix}}</p>{{/if}}
+      </div>
+      {{/each}}
+    </div>
+  {{else}}
+    <div class="empty">Aucun lieu trouvé</div>
+  {{/if}}
+</section>
+
+<!-- GUIDES DISPONIBLES -->
+<section class="guides-section">
+  <h2>👨‍💼 Guides disponibles</h2>
+  {{#if guides.length}}
+    <div class="guides-grid">
+      {{#each guides}}
+      <div class="guide-card">
+        <h4>{{this.nom_complet}}</h4>
+        <p>📧 {{this.email}}</p>
+        <span class="statut actif">✅ Abonnement actif</span>
+        <a href="/admin/messages/{{this.id}}" class="btn">Contacter</a>
+      </div>
+      {{/each}}
+    </div>
+  {{else}}
+    <div class="empty">Aucun guide disponible actuellement</div>
+  {{/if}}
+</section>
+
+<style>
+.gouvernorat-header { text-align: center; padding: 40px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+.lieux-grid, .guides-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; margin: 40px 0; }
+.lieu-card, .guide-card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+.type { font-weight: bold; padding: 5px 12px; border-radius: 20px; display: inline-block; margin-bottom: 15px; }
+.type.plage { background: #4ecdc4; color: white; }
+.type.culturel { background: #45b7d1; color: white; }
+.type.historique { background: #f9ca24; color: #333; }
+.contact a { color: #27ae60; font-weight: bold; }
+.statut.actif { background: #d4edda; color: #155724; padding: 5px 12px; border-radius: 20px; }
+</style>
